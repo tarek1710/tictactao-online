@@ -1,74 +1,85 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-
+const express = require("express");
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const http = require("http").createServer(app);
+const io = require("socket.io")(http);
 
-// ফাইলগুলো যদি 'public' ফোল্ডারের ভেতর থাকে তবে এটি কাজ করবে
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("public"));
 
-// কেউ মেইন লিঙ্কে ঢুকলে তাকে public ফোল্ডারের index.html ফাইলটি দেখাবে
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+let rooms = {};
 
-let players = {}; 
-let board = Array(9).fill(""); 
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
 
-io.on('connection', (socket) => {
-    console.log('প্লেয়ার কানেক্ট হয়েছে: ' + socket.id);
+  // Create Room
+  socket.on("createRoom", () => {
+    const roomCode = Math.random().toString(36).substr(2, 5).toUpperCase();
 
-    // প্লেয়ার রোল অ্যাসাইন করা (X বা O)
-    if (Object.keys(players).length === 0) {
-        players[socket.id] = "X";
-        socket.emit('playerRole', "X");
-    } else if (Object.keys(players).length === 1) {
-        players[socket.id] = "O";
-        socket.emit('playerRole', "O");
-    } else {
-        socket.emit('playerRole', "Spectator");
+    rooms[roomCode] = {
+      players: [{ id: socket.id, symbol: "X" }],
+      board: Array(9).fill(""),
+      turn: "X"
+    };
+
+    socket.join(roomCode);
+    socket.emit("roomCreated", { roomCode, symbol: "X" });
+  });
+
+  // Join Room
+  socket.on("joinRoom", (roomCode) => {
+    const room = rooms[roomCode];
+
+    if (!room) {
+      socket.emit("status", "Room not found");
+      return;
     }
 
-    // মুভ রিসিভ এবং ব্রডকাস্ট করা
-    socket.on('move', (data) => {
-        board[data.index] = data.symbol;
-        socket.broadcast.emit('move', data);
+    if (room.players.length >= 2) {
+      socket.emit("status", "Room full");
+      return;
+    }
 
-        // জয়ী চেক করা
-        const winner = checkWinner(board);
-        if (winner) {
-            io.emit('gameOver', winner);
-            board = Array(9).fill(""); // গেম রিসেট
-        }
-    });
+    room.players.push({ id: socket.id, symbol: "O" });
+    socket.join(roomCode);
 
-    socket.on('disconnect', () => {
-        delete players[socket.id];
-        console.log('প্লেয়ার ডিসকানেক্ট হয়েছে');
-    });
+    socket.emit("roomJoined", { roomCode, symbol: "O" });
+    io.to(roomCode).emit("status", "Game started! X's turn");
+  });
+
+  // Make Move
+  socket.on("makeMove", ({ roomCode, index, player }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    if (room.board[index] === "" && room.turn === player) {
+      room.board[index] = player;
+      room.turn = player === "X" ? "O" : "X";
+
+      io.to(roomCode).emit("updateBoard", room.board);
+      io.to(roomCode).emit("status", room.turn + "'s turn");
+    }
+  });
+
+  // Restart Game
+  socket.on("restart", (roomCode) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    room.board = Array(9).fill("");
+    room.turn = "X";
+
+    io.to(roomCode).emit("updateBoard", room.board);
+    io.to(roomCode).emit("status", "Game restarted! X's turn");
+  });
+
+  // Disconnect
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
 });
 
-// জয়ী নির্ধারণ করার লজিক
-function checkWinner(board) {
-    const wins = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8],
-        [0, 3, 6], [1, 4, 7], [2, 5, 8],
-        [0, 4, 8], [2, 4, 6]
-    ];
-    for (let [a, b, c] of wins) {
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];
-        }
-    }
-    if (!board.includes("")) return "Draw";
-    return null;
-}
-
-// পোর্ট কনফিগারেশন (Render-এর জন্য জরুরি)
+// Render compatible port
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(Server is running on port ${PORT});
-});
+
+http.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+}); 
