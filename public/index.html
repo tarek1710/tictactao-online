@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>XO Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <h1>XO Online</h1>
+
+    <button onclick="createRoom()">Create Room</button>
+    <input type="text" id="roomInput" placeholder="Enter Room Code">
+    <button onclick="joinRoom()">Join Room</button>
+
+    <h2 id="roomCode"></h2>
+    <h2 id="status">Create or Join Room</h2>
+
+    <div class="board" id="board"></div>
+
+    <button onclick="restartGame()">Restart</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
