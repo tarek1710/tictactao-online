@@ -1,35 +1,62 @@
 const socket = io();
 
-const board = document.getElementById("board");
-const roomCodeText = document.getElementById("roomCode");
-const statusText = document.getElementById("status");
-const roomInput = document.getElementById("roomInput");
-
 let roomCode = "";
 let player = "";
+let board = ["", "", "", "", "", "", "", "", ""];
 
-for (let i = 0; i < 9; i++) {
-  const cell = document.createElement("div");
-  cell.classList.add("cell");
-  board.appendChild(cell);
-}
+const cells = document.querySelectorAll(".cell");
+const statusText = document.getElementById("status");
+const roomCodeText = document.getElementById("roomCode");
 
 function createRoom() {
-  roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-  roomCodeText.innerText = "Room Code: " + roomCode;
-  statusText.innerText = "Room created. Waiting for player...";
+  socket.emit("createRoom");
 }
 
 function joinRoom() {
-  const code = roomInput.value.trim();
-  if (code === "") {
-    alert("Enter room code");
-    return;
-  }
-  roomCodeText.innerText = "Joined Room: " + code;
-  statusText.innerText = "Joined room successfully";
+  const code = document.getElementById("roomInput").value.toUpperCase();
+  socket.emit("joinRoom", code);
 }
 
+socket.on("roomCreated", (data) => {
+  roomCode = data.roomCode;
+  player = data.symbol;
+  roomCodeText.innerText = "Room Code: " + roomCode;
+  statusText.innerText = "Waiting for player...";
+});
+
+socket.on("roomJoined", (data) => {
+  roomCode = data.roomCode;
+  player = data.symbol;
+  roomCodeText.innerText = "Joined Room: " + roomCode;
+});
+
+socket.on("status", (msg) => {
+  statusText.innerText = msg;
+});
+
+socket.on("updateBoard", (newBoard) => {
+  board = newBoard;
+  updateBoard();
+});
+
+function updateBoard() {
+  cells.forEach((cell, index) => {
+    cell.innerText = board[index];
+  });
+}
+
+cells.forEach((cell, index) => {
+  cell.addEventListener("click", () => {
+    if (board[index] === "") {
+      socket.emit("makeMove", {
+        roomCode: roomCode,
+        index: index,
+        player: player
+      });
+    }
+  });
+});
+
 function restartGame() {
-  statusText.innerText = "Game restarted";
+  socket.emit("restart", roomCode);
 }

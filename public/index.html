@@ -5,22 +5,32 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-    <h1>XO Online</h1>
+  <div class="container">
+    <h1>XO Online Game</h1>
 
     <button onclick="createRoom()">Create Room</button>
     <input type="text" id="roomInput" placeholder="Enter Room Code">
     <button onclick="joinRoom()">Join Room</button>
 
     <h2 id="roomCode"></h2>
-    <h2 id="status">Create or Join Room</h2>
+    <h2 id="status"></h2>
 
-    <div class="board" id="board"></div>
+    <div class="board">
+      <div class="cell" data-index="0"></div>
+      <div class="cell" data-index="1"></div>
+      <div class="cell" data-index="2"></div>
+      <div class="cell" data-index="3"></div>
+      <div class="cell" data-index="4"></div>
+      <div class="cell" data-index="5"></div>
+      <div class="cell" data-index="6"></div>
+      <div class="cell" data-index="7"></div>
+      <div class="cell" data-index="8"></div>
+    </div>
 
     <button onclick="restartGame()">Restart</button>
-</div>
+  </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="script.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

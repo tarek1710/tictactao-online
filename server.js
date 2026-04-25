@@ -7,16 +7,36 @@ app.use(express.static("public"));
 
 let rooms = {};
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+function checkWinner(board) {
+  const wins = [
+    [0,1,2],
+    [3,4,5],
+    [6,7,8],
+    [0,3,6],
+    [1,4,7],
+    [2,5,8],
+    [0,4,8],
+    [2,4,6]
+  ];
 
-  // Create Room
+  for (let combo of wins) {
+    const [a, b, c] = combo;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a];
+    }
+  }
+
+  return null;
+}
+
+io.on("connection", (socket) => {
+
   socket.on("createRoom", () => {
-    const roomCode = Math.random().toString(36).substr(2, 5).toUpperCase();
+    const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
 
     rooms[roomCode] = {
       players: [{ id: socket.id, symbol: "X" }],
-      board: Array(9).fill(""),
+      board: ["", "", "", "", "", "", "", "", ""],
       turn: "X"
     };
 
@@ -24,7 +44,6 @@ io.on("connection", (socket) => {
     socket.emit("roomCreated", { roomCode, symbol: "X" });
   });
 
-  // Join Room
   socket.on("joinRoom", (roomCode) => {
     const room = rooms[roomCode];
 
@@ -39,19 +58,35 @@ io.on("connection", (socket) => {
     }
 
     room.players.push({ id: socket.id, symbol: "O" });
-    socket.join(roomCode);
 
+    socket.join(roomCode);
     socket.emit("roomJoined", { roomCode, symbol: "O" });
-    io.to(roomCode).emit("status", "Game started! X's turn");
+
+    io.to(roomCode).emit("status", "X's turn");
+    io.to(roomCode).emit("updateBoard", room.board);
   });
 
-  // Make Move
   socket.on("makeMove", ({ roomCode, index, player }) => {
     const room = rooms[roomCode];
     if (!room) return;
 
     if (room.board[index] === "" && room.turn === player) {
       room.board[index] = player;
+
+      const winner = checkWinner(room.board);
+
+      if (winner) {
+        io.to(roomCode).emit("updateBoard", room.board);
+        io.to(roomCode).emit("status", winner + " wins!");
+        return;
+      }
+
+      if (!room.board.includes("")) {
+        io.to(roomCode).emit("updateBoard", room.board);
+        io.to(roomCode).emit("status", "Draw!");
+        return;
+      }
+
       room.turn = player === "X" ? "O" : "X";
 
       io.to(roomCode).emit("updateBoard", room.board);
@@ -59,27 +94,20 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Restart Game
   socket.on("restart", (roomCode) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    room.board = Array(9).fill("");
+    room.board = ["", "", "", "", "", "", "", "", ""];
     room.turn = "X";
 
     io.to(roomCode).emit("updateBoard", room.board);
-    io.to(roomCode).emit("status", "Game restarted! X's turn");
-  });
-
-  // Disconnect
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    io.to(roomCode).emit("status", "X's turn");
   });
 });
 
-// Render compatible port
 const PORT = process.env.PORT || 3000;
 
-http.listen(PORT, "0.0.0.0", () => {
+http.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
