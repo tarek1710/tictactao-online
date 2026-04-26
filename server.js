@@ -9,18 +9,13 @@ let rooms = {};
 
 function checkWinner(board) {
   const wins = [
-    [0,1,2],
-    [3,4,5],
-    [6,7,8],
-    [0,3,6],
-    [1,4,7],
-    [2,5,8],
-    [0,4,8],
-    [2,4,6]
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
   ];
 
   for (let combo of wins) {
-    const [a, b, c] = combo;
+    const [a,b,c] = combo;
     if (board[a] && board[a] === board[b] && board[a] === board[c]) {
       return board[a];
     }
@@ -36,8 +31,9 @@ io.on("connection", (socket) => {
 
     rooms[roomCode] = {
       players: [{ id: socket.id, symbol: "X" }],
-      board: ["", "", "", "", "", "", "", "", ""],
-      turn: "X"
+      board: ["","","","","","","","",""],
+      turn: "X",
+      startingPlayer: "X"
     };
 
     socket.join(roomCode);
@@ -62,7 +58,7 @@ io.on("connection", (socket) => {
     socket.join(roomCode);
     socket.emit("roomJoined", { roomCode, symbol: "O" });
 
-    io.to(roomCode).emit("status", "X's turn");
+    io.to(roomCode).emit("status", room.turn + "'s turn");
     io.to(roomCode).emit("updateBoard", room.board);
   });
 
@@ -98,12 +94,14 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    room.board = ["", "", "", "", "", "", "", "", ""];
-    room.turn = "X";
+    room.startingPlayer = room.startingPlayer === "X" ? "O" : "X";
+    room.turn = room.startingPlayer;
+    room.board = ["","","","","","","","",""];
 
     io.to(roomCode).emit("updateBoard", room.board);
-    io.to(roomCode).emit("status", "X's turn");
+    io.to(roomCode).emit("status", room.turn + "'s turn");
   });
+
 });
 
 const PORT = process.env.PORT || 3000;
