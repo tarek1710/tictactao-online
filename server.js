@@ -19,7 +19,6 @@ function checkWinner(board) {
       return board[a];
     }
   }
-
   return null;
 }
 
@@ -32,7 +31,9 @@ io.on("connection", (socket) => {
       board: ["","","","","","","","",""],
       turn: "X",
       starter: "X",
-      players: {}
+      players: {},
+      gameOver: false,
+      restartUsed: false
     };
 
     rooms[roomCode].players[socket.id] = "X";
@@ -78,6 +79,8 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
+    if (Object.keys(room.players).length < 2) return;
+    if (room.gameOver) return;
     if (room.board[index] !== "") return;
     if (room.turn !== player) return;
 
@@ -86,12 +89,18 @@ io.on("connection", (socket) => {
     const winner = checkWinner(room.board);
 
     if (winner) {
+      room.gameOver = true;
+      room.restartUsed = false;
+
       io.to(roomCode).emit("updateBoard", room.board);
       io.to(roomCode).emit("status", winner + " wins!");
       return;
     }
 
     if (!room.board.includes("")) {
+      room.gameOver = true;
+      room.restartUsed = false;
+
       io.to(roomCode).emit("updateBoard", room.board);
       io.to(roomCode).emit("status", "Draw!");
       return;
@@ -107,16 +116,25 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
+    if (!room.gameOver) {
+      socket.emit("status", "Game is still running!");
+      return;
+    }
+
+    if (room.restartUsed) {
+      socket.emit("status", "Restart already used!");
+      return;
+    }
+
+    room.restartUsed = true;
+    room.gameOver = false;
+
     room.starter = room.starter === "X" ? "O" : "X";
     room.turn = room.starter;
     room.board = ["","","","","","","","",""];
 
     io.to(roomCode).emit("updateBoard", room.board);
     io.to(roomCode).emit("status", room.turn + "'s turn");
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
   });
 
 });
