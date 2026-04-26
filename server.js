@@ -26,7 +26,7 @@ function checkWinner(board) {
 io.on("connection", (socket) => {
 
   socket.on("createRoom", () => {
-    const roomCode = Math.random().toString(36).substring(2,7).toUpperCase();
+    const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
 
     rooms[roomCode] = {
       board: ["","","","","","","","",""],
@@ -61,6 +61,17 @@ io.on("connection", (socket) => {
 
     io.to(roomCode).emit("updateBoard", room.board);
     io.to(roomCode).emit("status", room.turn + "'s turn");
+  });
+
+  socket.on("rejoinRoom", ({ roomCode, player }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    room.players[socket.id] = player;
+    socket.join(roomCode);
+
+    socket.emit("updateBoard", room.board);
+    socket.emit("status", room.turn + "'s turn");
   });
 
   socket.on("makeMove", ({ roomCode, index, player }) => {
@@ -104,10 +115,14 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("status", room.turn + "'s turn");
   });
 
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+
 });
 
 const PORT = process.env.PORT || 3000;
 
 http.listen(PORT, () => {
   console.log("Server running on port " + PORT);
-})
+});
