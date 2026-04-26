@@ -25,18 +25,15 @@ function checkWinner(board) {
 io.on("connection", (socket) => {
 
   socket.on("createRoom", () => {
-    const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const roomCode = Math.random().toString(36).substring(2,7).toUpperCase();
 
     rooms[roomCode] = {
       board: ["","","","","","","","",""],
       turn: "X",
       starter: "X",
-      players: {},
-      gameOver: false,
-      restartUsed: false
+      players: 1,
+      gameOver: false
     };
-
-    rooms[roomCode].players[socket.id] = "X";
 
     socket.join(roomCode);
     socket.emit("roomCreated", { roomCode, symbol: "X" });
@@ -50,12 +47,12 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (Object.keys(room.players).length >= 2) {
+    if (room.players >= 2) {
       socket.emit("status", "Room full");
       return;
     }
 
-    room.players[socket.id] = "O";
+    room.players++;
 
     socket.join(roomCode);
     socket.emit("roomJoined", { roomCode, symbol: "O" });
@@ -64,25 +61,14 @@ io.on("connection", (socket) => {
     io.to(roomCode).emit("status", room.turn + "'s turn");
   });
 
-  socket.on("rejoinRoom", ({ roomCode, player }) => {
-    const room = rooms[roomCode];
-    if (!room) return;
-
-    room.players[socket.id] = player;
-    socket.join(roomCode);
-
-    socket.emit("updateBoard", room.board);
-    socket.emit("status", room.turn + "'s turn");
-  });
-
   socket.on("makeMove", ({ roomCode, index, player }) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    if (Object.keys(room.players).length < 2) return;
+    if (room.players < 2) return;
     if (room.gameOver) return;
-    if (room.board[index] !== "") return;
     if (room.turn !== player) return;
+    if (room.board[index] !== "") return;
 
     room.board[index] = player;
 
@@ -90,8 +76,6 @@ io.on("connection", (socket) => {
 
     if (winner) {
       room.gameOver = true;
-      room.restartUsed = false;
-
       io.to(roomCode).emit("updateBoard", room.board);
       io.to(roomCode).emit("status", winner + " wins!");
       return;
@@ -99,8 +83,6 @@ io.on("connection", (socket) => {
 
     if (!room.board.includes("")) {
       room.gameOver = true;
-      room.restartUsed = false;
-
       io.to(roomCode).emit("updateBoard", room.board);
       io.to(roomCode).emit("status", "Draw!");
       return;
@@ -121,17 +103,11 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.restartUsed) {
-      socket.emit("status", "Restart already used!");
-      return;
-    }
-
-    room.restartUsed = true;
+    room.board = ["","","","","","","","",""];
     room.gameOver = false;
 
     room.starter = room.starter === "X" ? "O" : "X";
     room.turn = room.starter;
-    room.board = ["","","","","","","","",""];
 
     io.to(roomCode).emit("updateBoard", room.board);
     io.to(roomCode).emit("status", room.turn + "'s turn");
