@@ -1,12 +1,13 @@
 const express = require("express");
 const app = express();
-const http = require("http").createServer(app);
-const io = require("socket.io")(http);
+const server = require("http").createServer(app);
+const io = require("socket.io")(server);
 
 app.use(express.static("public"));
 
-let rooms = {};
+const rooms = {};
 
+// Winner check function
 function checkWinner(board) {
   const wins = [
     [0,1,2],[3,4,5],[6,7,8],
@@ -17,116 +18,135 @@ function checkWinner(board) {
   for (let combo of wins) {
     const [a,b,c] = combo;
     if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return { winner: board[a], combo };
+      return board[a];
     }
   }
 
+  if (!board.includes("")) return "draw";
   return null;
 }
 
 io.on("connection", (socket) => {
 
-  socket.on("createRoom", (playerName) => {
-    const roomCode = Math.random().toString(36).substring(2,7).toUpperCase();
+  // Create Room
+  socket.on("createRoom", () => {
+    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     rooms[roomCode] = {
-      board: ["","","","","","","","",""],
-      turn: "X",
-      starter: "X",
-      players: {},
-      names: {},
-      gameOver: false
+      board: ["", "", "", "", "", "", "", "", ""],
+      currentTurn: "X",
+      players: {
+        X: socket.id,
+        O: null
+      }
     };
 
-    rooms[roomCode].players[socket.id] = "X";
-    rooms[roomCode].names["X"] = playerName;
-
     socket.join(roomCode);
-    socket.emit("roomCreated", { roomCode, symbol: "X" });
+
+    socket.emit("roomCreated", {
+      roomCode,
+      symbol: "X"
+    });
   });
 
-  socket.on("joinRoom", ({ roomCode, playerName }) => {
-    const room = rooms[roomCode];
-    if (!room) return socket.emit("status", "Room not found");
+  // Join Room
+  socket.on("joinRoom", (roomCode) => {
+    roomCode = roomCode.toUpperCase();
 
-    if (Object.keys(room.players).length >= 2) {
-      return socket.emit("status", "Room full");
+    const room = rooms[roomCode];
+
+    if (!room) {
+      socket.emit("gameOver", { message: "Room not found!" });
+      return;
     }
 
-    room.players[socket.id] = "O";
-    room.names["O"] = playerName;
+    if (room.players.O) {
+      socket.emit("gameOver", { message: "Room is full!" });
+      return;
+    }
+
+    room.players.O = socket.id;
 
     socket.join(roomCode);
-    socket.emit("roomJoined", { roomCode, symbol: "O" });
 
-    io.to(roomCode).emit("updateBoard", room.board);
-    io.to(roomCode).emit("status", room.names[room.turn] + "'s turn");
+    socket.emit("roomJoined", {
+      roomCode,
+      symbol: "O"
+    });
+
+    io.to(roomCode).emit("updateBoard", {
+      board: room.board,
+      currentTurn: room.currentTurn
+    });
   });
 
-  socket.on("rejoinRoom", ({ roomCode, player, playerName }) => {
+  // Make Move
+  socket.on("makeMove", ({ roomCode, index, symbol }) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    room.players[socket.id] = player;
-    room.names[player] = playerName;
-
-    socket.join(roomCode);
-    socket.emit("updateBoard", room.board);
-    socket.emit("status", room.names[room.turn] + "'s turn");
-  });
-
-  socket.on("makeMove", ({ roomCode, index, player }) => {
-    const room = rooms[roomCode];
-    if (!room) return;
-
-    if (Object.keys(room.players).length < 2) return;
-    if (room.gameOver) return;
-    if (room.turn !== player) return;
+    if (room.currentTurn !== symbol) return;
     if (room.board[index] !== "") return;
 
-    room.board[index] = player;
+    room.board[index] = symbol;
 
     const result = checkWinner(room.board);
 
     if (result) {
-      room.gameOver = true;
-
       io.to(roomCode).emit("updateBoard", {
         board: room.board,
-        winCombo: result.combo
+        currentTurn: room.currentTurn
       });
 
-      io.to(roomCode).emit("status", room.names[result.winner] + " wins!");
+      if (result === "draw") {
+        io.to(roomCode).emit("gameOver", {
+          message: "It's a Draw!"
+        });
+      } else {
+        io.to(roomCode).emit("gameOver", {
+          message: `${result} Wins!`
+        });
+      }
+
       return;
     }
 
-    if (!room.board.includes("")) {
-      room.gameOver = true;
-      io.to(roomCode).emit("updateBoard", room.board);
-      io.to(roomCode).emit("status", "Draw!");
-      return;
-    }
+    room.currentTurn = room.currentTurn === "X" ? "O" : "X";
 
-    room.turn = player === "X" ? "O" : "X";
-
-    io.to(roomCode).emit("updateBoard", room.board);
-    io.to(roomCode).emit("status", room.names[room.turn] + "'s turn");
+    io.to(roomCode).emit("updateBoard", {
+      board: room.board,
+      currentTurn: room.currentTurn
+    });
   });
 
-  socket.on("restart", (roomCode) => {
+  // Restart Game
+  socket.on("restartGame", (roomCode) => {
     const room = rooms[roomCode];
-    if (!room || !room.gameOver) return;
+    if (!room) return;
 
-    room.board = ["","","","","","","","",""];
-    room.gameOver = false;
-    room.starter = room.starter === "X" ? "O" : "X";
-    room.turn = room.starter;
+    room.board = ["", "", "", "", "", "", "", "", ""];
+    room.currentTurn = "X";
 
-    io.to(roomCode).emit("updateBoard", room.board);
-    io.to(roomCode).emit("status", room.names[room.turn] + "'s turn");
+    io.to(roomCode).emit("restartBoard");
   });
 
+  // Disconnect
+  socket.on("disconnect", () => {
+    for (const roomCode in rooms) {
+      const room = rooms[roomCode];
+
+      if (room.players.X === socket.id) {
+        delete rooms[roomCode];
+      }
+
+      if (room.players.O === socket.id) {
+        room.players.O = null;
+      }
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log("Server running"));
+server.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
