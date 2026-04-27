@@ -34,6 +34,7 @@ io.on("connection", (socket) => {
       currentTurn: "X",
       starter: "X",
       gameOver: false,
+      gameStarted: false,
       names: {
         X: name,
         O: ""
@@ -68,6 +69,7 @@ io.on("connection", (socket) => {
 
     room.players.O = socket.id;
     room.names.O = name;
+    room.gameStarted = true;
 
     socket.join(roomCode);
 
@@ -78,7 +80,8 @@ io.on("connection", (socket) => {
 
     io.to(roomCode).emit("updateBoard", {
       board: room.board,
-      currentTurn: room.currentTurn
+      currentTurn: room.currentTurn,
+      currentTurnName: room.names[room.currentTurn]
     });
   });
 
@@ -86,6 +89,7 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
+    if (!room.gameStarted) return;
     if (room.gameOver) return;
     if (room.currentTurn !== symbol) return;
     if (room.board[index] !== "") return;
@@ -99,7 +103,8 @@ io.on("connection", (socket) => {
 
       io.to(roomCode).emit("updateBoard", {
         board: room.board,
-        currentTurn: room.currentTurn
+        currentTurn: room.currentTurn,
+        currentTurnName: room.names[room.currentTurn]
       });
 
       io.to(roomCode).emit("gameOver", {
@@ -115,7 +120,8 @@ io.on("connection", (socket) => {
 
     io.to(roomCode).emit("updateBoard", {
       board: room.board,
-      currentTurn: room.currentTurn
+      currentTurn: room.currentTurn,
+      currentTurnName: room.names[room.currentTurn]
     });
   });
 
@@ -133,7 +139,8 @@ io.on("connection", (socket) => {
 
     io.to(roomCode).emit("updateBoard", {
       board: room.board,
-      currentTurn: room.currentTurn
+      currentTurn: room.currentTurn,
+      currentTurnName: room.names[room.currentTurn]
     });
   });
 
