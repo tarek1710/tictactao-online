@@ -1,87 +1,89 @@
 const socket = io();
 
 let roomCode = "";
-let player = "";
-let playerName = "";
+let mySymbol = "";
+let currentTurn = "X";
+let board = ["", "", "", "", "", "", "", "", ""];
 
-const cells = document.querySelectorAll(".cell");
-const statusText = document.getElementById("status");
-const roomCodeText = document.getElementById("roomCode");
+// Board create
+const boardElement = document.getElementById("board");
+for (let i = 0; i < 9; i++) {
+  const cell = document.createElement("div");
+  cell.classList.add("cell");
+  cell.dataset.index = i;
 
-socket.on("connect", () => {
-  const savedRoom = localStorage.getItem("roomCode");
-  const savedPlayer = localStorage.getItem("player");
-  const savedName = localStorage.getItem("playerName");
-
-  if (savedRoom && savedPlayer && savedName) {
-    roomCode = savedRoom;
-    player = savedPlayer;
-    playerName = savedName;
-
-    socket.emit("rejoinRoom", { roomCode, player, playerName });
-    roomCodeText.innerText = "Room: " + roomCode;
-  }
-});
-
-function createRoom() {
-  playerName = document.getElementById("playerName").value;
-  socket.emit("createRoom", playerName);
-}
-
-function joinRoom() {
-  playerName = document.getElementById("playerName").value;
-  const roomInput = document.getElementById("roomInput").value.toUpperCase();
-
-  socket.emit("joinRoom", { roomCode: roomInput, playerName });
-}
-
-socket.on("roomCreated", data => {
-  roomCode = data.roomCode;
-  player = data.symbol;
-
-  localStorage.setItem("roomCode", roomCode);
-  localStorage.setItem("player", player);
-  localStorage.setItem("playerName", playerName);
-
-  roomCodeText.innerText = "Room: " + roomCode;
-});
-
-socket.on("roomJoined", data => {
-  roomCode = data.roomCode;
-  player = data.symbol;
-
-  localStorage.setItem("roomCode", roomCode);
-  localStorage.setItem("player", player);
-  localStorage.setItem("playerName", playerName);
-
-  roomCodeText.innerText = "Room: " + roomCode;
-});
-
-socket.on("updateBoard", data => {
-  const board = data.board || data;
-  const winCombo = data.winCombo || [];
-
-  cells.forEach((cell, i) => {
-    cell.innerText = board[i];
-
-    cell.classList.remove("filled");
-    cell.classList.remove("win");
-
-    if (board[i] !== "") cell.classList.add("filled");
-    if (winCombo.includes(i)) cell.classList.add("win");
-  });
-});
-
-socket.on("status", msg => {
-  statusText.innerText = msg;
-});
-
-cells.forEach((cell, i) => {
   cell.addEventListener("click", () => {
-    socket.emit("makeMove", { roomCode, index: i, player });
+    if (board[i] === "" && mySymbol === currentTurn) {
+      socket.emit("makeMove", { roomCode, index: i, symbol: mySymbol });
+    }
   });
+
+  boardElement.appendChild(cell);
+}
+
+// Create room
+function createRoom() {
+  socket.emit("createRoom");
+}
+
+// Join room
+function joinRoom() {
+  const input = document.getElementById("roomInput").value.trim();
+  if (input !== "") {
+    socket.emit("joinRoom", input);
+  }
+}
+
+// Restart game
+function restartGame() {
+  socket.emit("restartGame", roomCode);
+}
+
+// Room created
+socket.on("roomCreated", (data) => {
+  roomCode = data.roomCode;
+  mySymbol = data.symbol;
+
+  document.getElementById("roomCode").innerText = "Room Code: " + roomCode;
+  document.getElementById("status").innerText = "Waiting for player...";
 });
 
-function restartGame() {
-  socket.emit("restart", roomCode);
-}
+// Joined room
+socket.on("roomJoined", (data) => {
+  roomCode = data.roomCode;
+  mySymbol = data.symbol;
+
+  document.getElementById("roomCode").innerText = "Room Code: " + roomCode;
+  document.getElementById("status").innerText = "Game Started! Turn: X";
+});
+
+// Update board
+socket.on("updateBoard", (data) => {
+  board = data.board;
+  currentTurn = data.currentTurn;
+
+  const cells = document.querySelectorAll(".cell");
+  cells.forEach((cell, index) => {
+    cell.innerText = board[index];
+  });
+
+  document.getElementById("status").innerText = "Turn: " + currentTurn;
+});
+
+// Winner
+socket.on("gameOver", (data) => {
+  document.getElementById("status").innerText = data.message;
+});
+
+// Restart board
+socket.on("restartBoard", () => {
+  board = ["", "", "", "", "", "", "", "", ""];
+  currentTurn = "X";
+
+  const cells = document.querySelectorAll(".cell");
+  cells.forEach((cell) => {
+    cell.innerText = "";
+  });
+
+  document.getElementById("status").innerText = "Turn: X";
+});
