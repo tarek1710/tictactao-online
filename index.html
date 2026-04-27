@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TicTacToe Online</title>
+
+  <link rel="stylesheet" href="style.css">
+
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon.png">
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4CAF50">
+</head>
+
+  <div class="container">
+    <h1>TicTacToe Online</h1>
+
+    <input type="text" id="playerName" placeholder="Enter Your Name">
+
+    <button onclick="createRoom()">Create Room</button>
+
+    <input type="text" id="roomInput" placeholder="Enter Room Code">
+    <button onclick="joinRoom()">Join Room</button>
+
+    <h2 id="roomCode"></h2>
+    <h2 id="status">Enter your name to start</h2>
+
+    <div class="board" id="board"></div>
+
+    <button onclick="restartGame()">Restart</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/script.js"></script>
+</body>
+</html>
